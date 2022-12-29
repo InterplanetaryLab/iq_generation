@@ -4,6 +4,7 @@ import pyvisa
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import struct
 
 #utilizes rigol manual and
 # https://btbm.ch/rigol-dg1022-how-to-create-waveforms-with-python/ for inspiration
@@ -65,6 +66,22 @@ def create_data_points(func, x_start, x_end, number_of_steps):
     plt.ylabel(func.__name__ + '(x) (scaled), [' + str(x_start) + ',' + str(x_end) + ']')
     plt.show()
     return output_string
+
+# rigol len str converter. Takes the length of the given packet and returns the len + number of digits to write the length.
+def rigol_len(length):
+    rtxt = "#"
+    rtxt += str(len(str(length))) + str(length)
+    return rtxt
+
+# Mostly referenced https://www.eevblog.com/forum/testgear/rigol-dg800-scpi-visa-matlab/ and a wireshark dump of the rigol waveform loading software
+def load_to_channel1(arb,points):
+    samplebytes = struct.pack('<' + 'h' *len(samples), *samples)
+    while(len(samplebytes) > 65536):
+        arb_send(arb, ":SOURCE1:TRACE:DATA:DAC16 VOLATILE,CON," + rigol_len(65536).encode('utf-8') + samplebytes[0:65536])
+        time.sleep(.2) # 200 ms sleep
+    
+    if (len(samplebytes) > 0):
+        arb_send("SOURCE:TRACE:DATA:DAC16 VOLATILE,END," rigol_len(len(samplebytes)) + samplebytes)
 
 def store_to_arb(arb,points,func_name):
     arb_send(arb,'DATA:DEL' + func_name)
